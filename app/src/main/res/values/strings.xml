@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Lease Scraper</string>
+    <string name="title_scraper">Vehicle Lease Scraper</string>
+    <string name="subtitle_scraper">Live extractor for leasing deals</string>
+    <string name="url_input_label">Leasing URL</string>
+    <string name="btn_scrape">Scrape Deal</string>
+    <string name="btn_scraping">Scraping...</string>
+    <string name="section_deals">Scraped Deals</string>
+    <string name="label_monthly_price">Monthly Price</string>
+    <string name="label_initial_payment">Initial Payment</string>
+    <string name="label_term">Contract Term</string>
+    <string name="label_mileage">Annual Mileage</string>
+    <string name="empty_deals_title">No Deals Scraped Yet</string>
+    <string name="empty_deals_subtitle">Enter a leasing.com deal URL above and tap Scrape Deal to extract vehicle pricing details.</string>
+</resources>

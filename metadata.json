@@ -1,0 +1,7 @@
+{
+  "name": "Lease Scraper",
+  "description": "Car lease deal scraper and calculator extracting quotes across 24, 36 & 48 month terms, 6k, 8k, 10k & 12k annual mileage profiles, and 1, 3, 6, 9 & 12 upfront payments, featuring vehicle, term, and mileage filters, multi-url controls, and CSV export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
