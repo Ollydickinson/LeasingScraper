@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.OpenInBrowser
-import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,9 +38,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -79,7 +78,7 @@ fun ControlsTabContent(
     onAddUrl: (url: String, description: String) -> Unit,
     onUpdateUrl: (savedUrl: SavedUrl, newDescription: String, newUrl: String) -> Unit,
     onDeleteUrl: (SavedUrl) -> Unit,
-    onScrapeUrl: (url: String) -> Unit,
+    onScrapeUrl: (String) -> Unit,
     onScrapeAll: () -> Unit,
     onOpenWebView: (url: String) -> Unit,
     onNavigateToDeals: () -> Unit,
@@ -105,6 +104,14 @@ fun ControlsTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (isScraping) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+            )
+        }
         // --- Card 1: Add New URL & Description ---
         ElevatedCard(
             shape = RoundedCornerShape(20.dp),
@@ -147,7 +154,7 @@ fun ControlsTabContent(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Save multiple URLs with custom descriptions to scrape",
+                            text = "Save multiple URLs with custom descriptions to extract",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -278,7 +285,7 @@ fun ControlsTabContent(
             }
         }
 
-        // --- Section Header: Saved URLs & Batch Actions ---
+        // --- Section Header: Saved URLs ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -296,7 +303,7 @@ fun ControlsTabContent(
                     color = if (scrapedCount > 0) Color(0xFF10B981).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Text(
-                        text = "$scrapedCount of ${savedUrls.size} Scraped",
+                        text = "$scrapedCount of ${savedUrls.size} Extracted",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
@@ -306,35 +313,21 @@ fun ControlsTabContent(
             }
 
             if (savedUrls.isNotEmpty()) {
-                FilledTonalButton(
+                TextButton(
                     onClick = onScrapeAll,
                     enabled = !isScraping,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("scrape_all_button")
+                    modifier = Modifier.testTag("scrape_all_saved_button")
                 ) {
-                    if (isScraping) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Scraping...",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Scrape All",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isScraping) "Scraping..." else "Scrape All",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -369,7 +362,7 @@ fun ControlsTabContent(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Add vehicle URLs with descriptions above to build your scraping list.",
+                        text = "Add vehicle URLs with descriptions above to build your list.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -386,17 +379,16 @@ fun ControlsTabContent(
                 val matchingDeals = deals.filter {
                     it.sourceUrl.trim().equals(savedUrl.url.trim(), ignoreCase = true)
                 }
-                val isThisItemScraping = isScraping && scrapingUrl == savedUrl.url
 
+                val isThisItemScraping = isScraping && scrapingUrl == savedUrl.url
                 SavedUrlItemCard(
                     savedUrl = savedUrl,
                     isScraped = isCurrentlyScraped,
+                    isScraping = isThisItemScraping,
                     tiersCount = tiersCount,
                     matchingDeals = matchingDeals,
-                    isScraping = isThisItemScraping,
-                    anyScraping = isScraping,
-                    onScrape = { onScrapeUrl(savedUrl.url) },
                     onOpenWebView = { onOpenWebView(savedUrl.url) },
+                    onScrape = { onScrapeUrl(savedUrl.url) },
                     onEdit = { editingItem = savedUrl },
                     onDelete = { itemToDelete = savedUrl },
                     onNavigateToDeals = onNavigateToDeals
@@ -478,12 +470,11 @@ fun ControlsTabContent(
 fun SavedUrlItemCard(
     savedUrl: SavedUrl,
     isScraped: Boolean,
+    isScraping: Boolean,
     tiersCount: Int,
     matchingDeals: List<LeaseDeal>,
-    isScraping: Boolean,
-    anyScraping: Boolean,
-    onScrape: () -> Unit,
     onOpenWebView: () -> Unit,
+    onScrape: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onNavigateToDeals: () -> Unit,
@@ -672,60 +663,19 @@ fun SavedUrlItemCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Action Buttons: Scrape and Web View
+            // Action Button: Web View & Scrape
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Scrape Button for this specific URL
-                Button(
-                    onClick = onScrape,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .testTag("scrape_button_${savedUrl.id}"),
-                    enabled = !anyScraping,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isScraped) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    if (isScraping) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Scraping...",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.TravelExplore,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isScraped) "Re-scrape" else "Scrape",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                // Web View Button for this specific URL
                 OutlinedButton(
                     onClick = onOpenWebView,
                     modifier = Modifier
                         .weight(1f)
                         .height(44.dp)
                         .testTag("webview_button_${savedUrl.id}"),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Icon(
                         imageVector = Icons.Default.OpenInBrowser,
@@ -734,9 +684,42 @@ fun SavedUrlItemCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Web View",
+                        text = "Browser",
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Button(
+                    onClick = onScrape,
+                    enabled = !isScraping,
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(44.dp)
+                        .testTag("scrape_item_button_${savedUrl.id}"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    if (isScraping) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Scrape Price",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isScraping) "..." else if (isScraped) "Re-scrape" else "Extract",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

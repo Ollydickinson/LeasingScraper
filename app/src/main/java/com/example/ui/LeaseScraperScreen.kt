@@ -1,7 +1,5 @@
 package com.example.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,7 +54,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -65,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
+import com.example.data.model.LeaseDeal
 import com.example.data.scraper.LeaseScraperEngine
 import com.example.ui.components.ControlsTabContent
 import com.example.ui.components.DealCard
@@ -98,17 +96,17 @@ fun LeaseScraperScreen(
     }
 
     val distinctMileages = remember(deals) {
-        val extracted = deals.map { LeaseScraperEngine.extractMileageInt(it) }.filter { it > 0 }.distinct()
+        val extracted = deals.map { deal: LeaseDeal -> LeaseScraperEngine.extractMileageInt(deal) }.filter { it > 0 }.distinct()
         (listOf(6000, 8000, 10000, 12000) + extracted).distinct().sorted()
     }
 
     val distinctTerms = remember(deals) {
-        val extracted = deals.map { LeaseScraperEngine.extractTermMonths(it) }.filter { it > 0 }.distinct()
+        val extracted = deals.map { deal: LeaseDeal -> LeaseScraperEngine.extractTermMonths(deal) }.filter { it > 0 }.distinct()
         (listOf(24, 36, 48) + extracted).distinct().sorted()
     }
 
     val distinctUpfronts = remember(deals) {
-        val extracted = deals.map { it.upfrontPaymentsCount }.filter { it > 0 }.distinct()
+        val extracted = deals.map { deal: LeaseDeal -> deal.upfrontPaymentsCount }.filter { it > 0 }.distinct()
         (listOf(1, 3, 6, 9, 12) + extracted).distinct().sorted()
     }
 
@@ -124,7 +122,7 @@ fun LeaseScraperScreen(
                 deal.vehicleName.contains(selectedVehicleFilter!!, ignoreCase = true)
 
             val matchesTerm = selectedTermFilter == null ||
-                deal.termMonths.contains("${selectedTermFilter}", ignoreCase = true)
+                deal.termMonths.contains("$selectedTermFilter", ignoreCase = true)
 
             val matchesUpfront = selectedUpfrontFilter == null ||
                 deal.upfrontPaymentsCount == selectedUpfrontFilter
@@ -170,7 +168,7 @@ fun LeaseScraperScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "6k, 8k, 10k & 12k mi · 1–12 Upfront · 24–48m",
+                                text = "Extracting monthly rentals for verification",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -518,7 +516,7 @@ fun LeaseScraperScreen(
                                                             viewModel.setUpfrontFilter(upfrontTier)
                                                         }
                                                     },
-                                                    label = { Text("${upfrontTier} Upfront ($count)") },
+                                                    label = { Text("$upfrontTier Upfront ($count)") },
                                                     modifier = Modifier.testTag("filter_chip_upfront_$upfrontTier")
                                                 )
                                             }
@@ -643,13 +641,13 @@ fun LeaseScraperScreen(
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
-                                            text = "Clean Slate — Ready to Scrape",
+                                            text = "Basic Scraper — Ready to Search",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "Tap below to scrape pricing across 24, 36 & 48 month terms and 1, 3, 6, 9 & 12 upfront payments from the target leasing URL, or go to Controls to manage and scrape multiple vehicles.",
+                                            text = "Tap below to search the target URL and find the lowest monthly leasing price available on the page.",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.padding(horizontal = 16.dp)
@@ -776,20 +774,18 @@ fun LeaseScraperScreen(
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
-            title = { Text("About Lease Scraper") },
+            title = { Text("About Basic Scraper") },
             text = {
                 Column {
                     Text(
-                        text = "This app extracts live car lease details across 24, 36 & 48 month terms and 1, 3, 6, 9 & 12 upfront payments:",
+                        text = "Step 1: Focus on parsing the search results page to find the lowest monthly price.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("• Filter deals by Vehicle, Contract Term (24, 36, 48m), and Upfront payments")
-                    Text("• Manage multiple vehicle URLs with descriptions on the Controls tab")
-                    Text("• Individual Scrape and live Web View buttons for each URL")
-                    Text("• Live status indicating if each vehicle is currently in scraped data")
-                    Text("• Batch 'Scrape All' to process all saved vehicles")
-                    Text("• Export all options directly as CSV")
+                    Text("• Scrapes all deals from the provided Vauxhall Corsa search URL")
+                    Text("• Identifies the lowest monthly price on the page")
+                    Text("• Displays extracted deals in a list for verification")
+                    Text("• Export options to CSV for further analysis")
                 }
             },
             confirmButton = {

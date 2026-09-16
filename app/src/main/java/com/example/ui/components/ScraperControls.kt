@@ -190,7 +190,7 @@ fun ScraperControls(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Pulls 6k, 8k, 10k & 12k miles across 1–12 upfront payments",
+                        text = "Extracting all monthly price points from the search results",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp

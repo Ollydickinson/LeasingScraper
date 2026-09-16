@@ -2,7 +2,9 @@ package com.example.ui.components
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -11,6 +13,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +52,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.data.model.LeaseDeal
 import com.example.data.scraper.LeaseScraperEngine
+import org.json.JSONObject
+import java.util.Locale
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -57,8 +64,94 @@ fun ScraperWebView(
     modifier: Modifier = Modifier
 ) {
     var pageProgress by remember { mutableFloatStateOf(0f) }
-    var currentTitle by remember { mutableStateOf("Loading Web Scraper...") }
+    var currentTitle by remember { mutableStateOf("Loading Browser...") }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var isScrapingNow by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    val runScrapeScript = {
+        webViewRef?.let { webView ->
+            isScrapingNow = true
+            Log.d("ScraperDebug", "Manual extraction triggered for: ${webView.url}")
+            
+            // Note: In Kotlin """ strings, a single \s in the source becomes a single \s in the output.
+            // In JS, /\s/ matches whitespace. This is what we want.
+            val js = """
+                (function() {
+                    try {
+                        console.log('JS Scraper: Searching DOM...');
+                        
+                        var titleSelectors = ['.c-listing-card__title', '.c-deal-card__title', '.deal-card h2', '.listing-card h2', 'h1', 'h2'];
+                        var title = 'Unknown Vehicle';
+                        for (var s of titleSelectors) {
+                            var el = document.querySelector(s);
+                            if (el && el.innerText.trim()) {
+                                title = el.innerText.trim();
+                                break;
+                            }
+                        }
+                        
+                        var derivative = document.querySelector('.c-listing-card__derivative, .c-deal-card__derivative, [class*="derivative"]');
+                        if (derivative && !title.includes(derivative.innerText)) {
+                            title += ' ' + derivative.innerText.trim();
+                        }
+
+                        var scopeText = document.body.innerText;
+                        var card = document.querySelector('.c-listing-card, .deal-card, .listing-item, [class*="card"]');
+                        if (card) {
+                            scopeText = card.innerText + "\n---\n" + scopeText;
+                        }
+                        
+                        // 1. Initial Rental Extraction
+                        // Matches "£2,808.12 initial rental" or "Initial Rental: £2,808.12"
+                        var initMatch = scopeText.match(/£\s*([\d,]+(?:\.\d{2})?)\s*(?:initial payment|initial rental|upfront|deposit|initial)/i) ||
+                                        scopeText.match(/(?:initial payment|initial rental|upfront|deposit|initial)[\s:]*£\s*([\d,]+(?:\.\d{2})?)/i);
+                        var initial = initMatch ? '£' + initMatch[1] : '';
+
+                        // 2. Monthly Price Extraction
+                        // Matches "£234.01 per month" or "Monthly Rental: £234.01"
+                        var monthlyMatch = scopeText.match(/£\s*([\d,]+(?:\.\d{2})?)\s*(?:monthly|pm|per month|monthly rental)/i) ||
+                                           scopeText.match(/(?:monthly|pm|per month|monthly rental)[\s:]*£\s*([\d,]+(?:\.\d{2})?)/i);
+                        var monthly = monthlyMatch ? '£' + monthlyMatch[1] : '';
+
+                        // Fallback: If we have one price but not the other
+                        if (!monthly && initial) {
+                           var allPrices = scopeText.match(/£\s*[\d,]+(?:\.\d{2})?/g) || [];
+                           for (var p of allPrices) {
+                               if (p !== initial) { monthly = p; break; }
+                           }
+                        }
+
+                        var initIndex = scopeText.toLowerCase().indexOf('initial rental');
+                        var initialContext = initIndex !== -1 ? 
+                            scopeText.substring(Math.max(0, initIndex - 40), Math.min(scopeText.length, initIndex + 60)).replace(/\n/g, ' ') : 'Not Found';
+
+                        var debugInfo = {
+                            title: title,
+                            monthly: monthly,
+                            initial: initial,
+                            initialContext: initialContext,
+                            url: window.location.href
+                        };
+
+                        console.log('JS Scraper Result: ' + JSON.stringify(debugInfo));
+                        
+                        if (monthly) {
+                            AndroidScraper.receiveExtractedDeal(title, monthly, initial, '', '', '', '', JSON.stringify(debugInfo));
+                        } else {
+                            console.log('JS Scraper: Could not find monthly price.');
+                        }
+                    } catch(e) {
+                        console.error('JS Scraper Exception: ' + e);
+                    }
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+            
+            webView.postDelayed({ isScrapingNow = false }, 2000)
+        }
+    }
 
     Surface(
         modifier = modifier.testTag("scraper_webview_container"),
@@ -86,6 +179,25 @@ fun ScraperWebView(
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1
                     )
+                }
+
+                if (isScrapingNow) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp).padding(4.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    IconButton(
+                        onClick = { runScrapeScript() },
+                        modifier = Modifier.size(40.dp).testTag("manual_scrape_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Extract Deal Now",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
 
                 IconButton(
@@ -118,7 +230,9 @@ fun ScraperWebView(
             if (pageProgress in 0.01f..0.99f) {
                 LinearProgressIndicator(
                     progress = { pageProgress },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                 )
             }
 
@@ -129,22 +243,23 @@ fun ScraperWebView(
                         WebView(ctx).apply {
                             webViewRef = this
 
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                                WebView.setWebContentsDebuggingEnabled(true)
+                            }
+
                             val cookieManager = CookieManager.getInstance()
                             cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
 
                             settings.apply {
                                 javaScriptEnabled = true
                                 domStorageEnabled = true
-                                databaseEnabled = true
                                 useWideViewPort = true
                                 loadWithOverviewMode = true
-                                userAgentString =
-                                    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro Build/UQ1A.240205.004) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36"
+                                // Simplified User Agent to avoid detection/blocks
+                                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
                                 cacheMode = WebSettings.LOAD_DEFAULT
                             }
 
-                            // Javascript Interface for DOM Extraction
                             addJavascriptInterface(object {
                                 @JavascriptInterface
                                 fun receiveExtractedDeal(
@@ -154,37 +269,47 @@ fun ScraperWebView(
                                     term: String,
                                     mileage: String,
                                     financeType: String,
-                                    additionalFees: String
+                                    additionalFees: String,
+                                    debugMetadata: String
                                 ) {
                                     post {
-                                        val isSearch = LeaseScraperEngine.isSearchListingUrl(url)
-                                        val meta = LeaseScraperEngine.parseUrlMetadata(url)
-                                        val searchMeta = LeaseScraperEngine.parseSearchUrlMetadata(url)
+                                        Log.d("ScraperDebug", "EXTRACTED: $monthlyPrice / $initialPayment")
+                                        
+                                        if (monthlyPrice.isBlank()) return@post
 
-                                        val resolvedMake = if (isSearch) searchMeta.manufacturer else meta.make.ifBlank { "Vauxhall" }
-                                        val resolvedModel = if (isSearch) searchMeta.range else meta.model.ifBlank { "Corsa" }
-                                        val resolvedFinance = financeType.ifBlank { if (isSearch) searchMeta.financeType else "Personal" }
-                                        val resolvedFee = additionalFees.ifBlank { "£199.00" }
-                                        val resolvedVat = if (resolvedFinance.equals("Business", ignoreCase = true)) "+ VAT" else "Inc. VAT"
+                                        val monthlyVal = monthlyPrice.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
+                                        val initialVal = initialPayment.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
+                                        val calculatedUpfront = if (monthlyVal > 0) Math.round(initialVal / monthlyVal).toInt() else 0
+                                        
+                                        val metadataStr = try {
+                                            val json = JSONObject(debugMetadata)
+                                            val contextSnippet = json.optString("initialContext", "")
+                                            "\nContext: $contextSnippet"
+                                        } catch (e: Exception) { "" }
+
+                                        Toast.makeText(context, 
+                                            "Found: $monthlyPrice pm / $initialPayment upfront ($calculatedUpfront months)$metadataStr", 
+                                            Toast.LENGTH_LONG).show()
 
                                         val deal = LeaseDeal(
                                             sourceUrl = url,
-                                            vehicleName = vehicleTitle.ifBlank { "$resolvedMake $resolvedModel 1.2 Design" },
-                                            vehicleMake = resolvedMake.replaceFirstChar { it.uppercase() },
-                                            vehicleModel = resolvedModel.replaceFirstChar { it.uppercase() },
-                                            trimVariant = vehicleTitle.substringAfter(resolvedModel).trim().ifBlank { "1.2 Design 5dr" },
-                                            monthlyPrice = monthlyPrice.ifBlank { "£179.99 / mo" },
-                                            initialPayment = initialPayment.ifBlank { "£1,619.91 (9 months upfront)" },
-                                            termMonths = term.ifBlank { "36 Months" },
-                                            annualMileage = mileage.ifBlank { "8,000 miles/yr" },
-                                            brokerName = meta.brokerName.ifBlank { "Lease Cars 4 Less" },
-                                            dealRef = meta.dealRef.ifBlank { "L0103950000002074620" },
-                                            vatStatus = resolvedVat,
-                                            contractType = "$resolvedFinance Lease",
-                                            fuelType = if (vehicleTitle.contains("Electric", ignoreCase = true)) "Electric" else "Petrol",
-                                            transmission = if (vehicleTitle.contains("Auto", ignoreCase = true)) "Automatic" else "Manual",
-                                            financeType = resolvedFinance,
-                                            additionalFees = resolvedFee
+                                            vehicleName = vehicleTitle,
+                                            vehicleMake = "",
+                                            vehicleModel = "",
+                                            trimVariant = "",
+                                            monthlyPrice = if (monthlyPrice.startsWith("£")) monthlyPrice else "£$monthlyPrice",
+                                            initialPayment = if (initialPayment.isNotBlank()) initialPayment else "Check site",
+                                            termMonths = "36 Months", // Default or extract
+                                            annualMileage = "10,000 miles", // Default or extract
+                                            brokerName = "Scraped from Browser",
+                                            dealRef = "B" + System.currentTimeMillis().toString().takeLast(8),
+                                            vatStatus = "Inc. VAT",
+                                            contractType = "Personal Lease",
+                                            fuelType = "Petrol",
+                                            transmission = "Manual",
+                                            financeType = "Personal",
+                                            upfrontPaymentsCount = calculatedUpfront,
+                                            additionalFees = "None"
                                         )
                                         onDealExtracted(deal)
                                     }
@@ -198,7 +323,7 @@ fun ScraperWebView(
                                     term: String,
                                     mileage: String
                                 ) {
-                                    receiveExtractedDeal(vehicleTitle, monthlyPrice, initialPayment, term, mileage, "Personal", "£199.00")
+                                    receiveExtractedDeal(vehicleTitle, monthlyPrice, initialPayment, term, mileage, "", "", "{}")
                                 }
                             }, "AndroidScraper")
 
@@ -206,68 +331,35 @@ fun ScraperWebView(
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     pageProgress = newProgress / 100f
                                     if (newProgress == 100) {
-                                        currentTitle = view?.title ?: "Deal Page"
+                                        currentTitle = view?.title ?: "Page Loaded"
                                     }
+                                }
+
+                                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                    Log.d("ScraperWebViewJS", "[JS] ${consoleMessage?.message()}")
+                                    return true
                                 }
                             }
 
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                     super.onPageStarted(view, url, favicon)
-                                    currentTitle = "Scraping $url..."
+                                    currentTitle = "Loading..."
                                 }
 
                                 override fun onPageFinished(view: WebView?, finishedUrl: String?) {
                                     super.onPageFinished(view, finishedUrl)
-                                    currentTitle = view?.title ?: "Deal Loaded"
-
-                                    // Inject script to extract deal metrics and separate fees/finance type
-                                    val js = """
-                                        (function() {
-                                            try {
-                                                var title = document.querySelector('h1')?.innerText || 
-                                                            document.querySelector('.c-deal-card__title, .deal-card h2, .listing-card h2, [class*="vehicle-card"] h2')?.innerText ||
-                                                            document.title;
-                                                var body = document.body ? document.body.innerText : '';
-                                                
-                                                var monthlyMatch = body.match(/(?:monthly|pm|per month|rental)[\s:]*£\s*(\d{1,4}(?:\.\d{2})?)/i) ||
-                                                                   body.match(/£\s*(\d{2,4}(?:\.\d{2})?)/);
-                                                var monthly = monthlyMatch ? '£' + monthlyMatch[1] : '';
-
-                                                var initMatch = body.match(/(?:initial payment|initial rental|upfront|deposit)[\s:]*£\s*(\d{1,4}(?:,\d{3})?(?:\.\d{2})?)/i);
-                                                var initial = initMatch ? '£' + initMatch[1] : '';
-
-                                                var termMatch = body.match(/\b(12|18|24|36|48|60)\s*(?:months|mths|month)\b/i);
-                                                var term = termMatch ? termMatch[1] + ' Months' : '36 Months';
-
-                                                var mileMatch = body.match(/\b(\d{1,2},?\d{3})\s*(?:miles|mileage|per annum|mpa)\b/i);
-                                                var mileage = mileMatch ? mileMatch[1] + ' miles/yr' : '8,000 miles/yr';
-
-                                                var feeMatch = body.match(/(?:processing|admin|additional|broker)\s*(?:fee|charges?)?[\s:]*£\s*(\d{1,4}(?:\.\d{2})?)/i);
-                                                var addFee = feeMatch ? '£' + feeMatch[1] : '£199.00';
-
-                                                var isBusiness = /business/i.test(body) && !/personal/i.test(body);
-                                                var financeType = isBusiness ? 'Business' : 'Personal';
-
-                                                if (monthly) {
-                                                    AndroidScraper.receiveExtractedDeal(title, monthly, initial, term, mileage, financeType, addFee);
-                                                }
-                                            } catch(e) {
-                                                console.error(e);
-                                            }
-                                        })();
-                                    """.trimIndent()
-
-                                    view?.evaluateJavascript(js, null)
+                                    currentTitle = view?.title ?: "Ready"
+                                    
+                                    // Auto-scrape after a safe delay
+                                    view?.postDelayed({
+                                        runScrapeScript()
+                                    }, 3000)
                                 }
 
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: WebResourceError?
-                                ) {
+                                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                                     super.onReceivedError(view, request, error)
-                                    Log.w("ScraperWebView", "Web error: ${error?.description}")
+                                    Log.e("ScraperWebView", "Web Error: ${error?.description}")
                                 }
                             }
 
