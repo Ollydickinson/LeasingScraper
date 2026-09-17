@@ -140,6 +140,15 @@ fun ScraperWebView(
                     
                     var leaseMatch = scopeText.match(/Lease type:\s*([a-z]+)/i);
                     var leaseType = leaseMatch ? leaseMatch[1] : '';
+                    
+                    var brokerMatch = scopeText.match(/Deal by:\s*([\s\S]+?)(?=\s+\d+\.\d+|\s*\*?images? for illustration|\n|$)/i);
+                    var broker = brokerMatch ? brokerMatch[1].trim() : '';
+                    
+                    var transMatch = scopeText.match(/\b(Automatic|Manual)\b/i);
+                    var transmission = transMatch ? transMatch[1] : '';
+                    
+                    var fuelMatch = scopeText.match(/\b(Petrol\/Electric Hybrid|Plug-in Hybrid|Petrol\/Electric|Electric|Petrol|Diesel|Hybrid)\b/i);
+                    var fuelType = fuelMatch ? fuelMatch[1] : '';
 
                     // Fallback: If we have one price but not the other
                     if (!monthly && initial) {
@@ -163,13 +172,17 @@ fun ScraperWebView(
                         mileage: mileage,
                         initialContext: initialContext,
                         leaseType: leaseType,
+                        broker: broker,
+                        transmission: transmission,
+                        fuelType: fuelType,
                         url: window.location.href
                     };
 
                     console.log('JS Scraper Result: ' + JSON.stringify(debugInfo));
                     
                     if (monthly) {
-                        AndroidScraper.receiveExtractedDeal(vehicleName, derivativeText, monthly, initial, term, mileage, '', additionalFees, leaseType, JSON.stringify(debugInfo));
+                        AndroidScraper.receiveExtractedDeal(vehicleName, derivativeText, monthly, initial, term, mileage,broker, '', additionalFees, leaseType,transmission,
+                         fuelType, JSON.stringify(debugInfo));
                     } else {
                         console.log('JS Scraper: Could not find monthly price.');
                     }
@@ -300,9 +313,12 @@ fun ScraperWebView(
                                     initialPayment: String,
                                     term: String,
                                     mileage: String,
+                                    broker: String,
                                     financeType: String,
                                     additionalFees: String,
                                     leaseType: String,
+                                    transmission: String,
+                                    fuelType: String,
                                     debugMetadata: String
                                 ) {
                                     post {
@@ -336,12 +352,12 @@ fun ScraperWebView(
                                             initialPayment = if (initialPayment.isNotBlank()) initialPayment else "Check site",
                                             termMonths = if (term.isNotBlank()) "$term Months" else "term not found",
                                             annualMileage = if (mileage.isNotBlank()) "$mileage miles" else "miles not found",
-                                            brokerName = "Broker tbc",
+                                            brokerName = if (broker.isNotBlank()) "$broker" else "broker not found",
                                             dealRef = "B" + System.currentTimeMillis().toString().takeLast(8),
                                             vatStatus = "tbc",
                                             contractType = leaseType,
-                                            fuelType = "tbc",
-                                            transmission = "tbc",
+                                            fuelType = fuelType,
+                                            transmission = transmission,
                                             financeType = "tbc",
                                             upfrontPaymentsCount = calculatedUpfront,
                                             additionalFees = additionalFees
@@ -356,12 +372,17 @@ fun ScraperWebView(
                                     derivative: String,
                                     monthlyPrice: String,
                                     initialPayment: String,
+                                    financeType: String,
+                                    broker: String,
                                     term: String,
                                     additionalFees: String,
                                     leaseType: String,
-                                    mileage: String
+                                    mileage: String,
+                                    fuelType: String,
+                                    transmission: String
                                 ) {
-                                    receiveExtractedDeal(vehicleName, derivative, monthlyPrice, initialPayment, term, mileage, "", additionalFees, leaseType, "{}")
+                                    receiveExtractedDeal(vehicleName, derivative, monthlyPrice, initialPayment, term, mileage,broker,
+                                        "", additionalFees, leaseType,transmission, fuelType, "{}")
                                 }
                             }, "AndroidScraper")
 
