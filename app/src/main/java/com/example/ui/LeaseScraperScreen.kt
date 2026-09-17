@@ -82,7 +82,6 @@ fun LeaseScraperScreen(
     val savedUrls by viewModel.savedUrls.collectAsStateWithLifecycle()
     val urlInput by viewModel.urlInput.collectAsStateWithLifecycle()
     val isScraping by viewModel.isScraping.collectAsStateWithLifecycle()
-    val scrapingUrl by viewModel.scrapingUrl.collectAsStateWithLifecycle()
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val showBrowserPreview by viewModel.showBrowserPreview.collectAsStateWithLifecycle()
     val activeBrowserUrl by viewModel.activeBrowserUrl.collectAsStateWithLifecycle()
@@ -709,13 +708,9 @@ fun LeaseScraperScreen(
                             ControlsTabContent(
                                 savedUrls = savedUrls,
                                 deals = deals,
-                                isScraping = isScraping,
-                                scrapingUrl = scrapingUrl,
                                 onAddUrl = viewModel::addSavedUrl,
                                 onUpdateUrl = viewModel::updateSavedUrl,
                                 onDeleteUrl = viewModel::deleteSavedUrl,
-                                onScrapeUrl = { url -> viewModel.scrapeDeal(url) },
-                                onScrapeAll = viewModel::scrapeAllSavedUrls,
                                 onOpenWebView = viewModel::openWebViewForUrl,
                                 onNavigateToDeals = { viewModel.setTab(ScraperTab.DEALS) }
                             )

@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
@@ -36,13 +35,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SuggestionChip
@@ -73,13 +69,9 @@ import com.example.data.model.SavedUrl
 fun ControlsTabContent(
     savedUrls: List<SavedUrl>,
     deals: List<LeaseDeal>,
-    isScraping: Boolean,
-    scrapingUrl: String?,
     onAddUrl: (url: String, description: String) -> Unit,
     onUpdateUrl: (savedUrl: SavedUrl, newDescription: String, newUrl: String) -> Unit,
     onDeleteUrl: (SavedUrl) -> Unit,
-    onScrapeUrl: (String) -> Unit,
-    onScrapeAll: () -> Unit,
     onOpenWebView: (url: String) -> Unit,
     onNavigateToDeals: () -> Unit,
     modifier: Modifier = Modifier
@@ -104,14 +96,6 @@ fun ControlsTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (isScraping) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-            )
-        }
         // --- Card 1: Add New URL & Description ---
         ElevatedCard(
             shape = RoundedCornerShape(20.dp),
@@ -311,25 +295,6 @@ fun ControlsTabContent(
                     )
                 }
             }
-
-            if (savedUrls.isNotEmpty()) {
-                TextButton(
-                    onClick = onScrapeAll,
-                    enabled = !isScraping,
-                    modifier = Modifier.testTag("scrape_all_saved_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isScraping) "Scraping..." else "Scrape All",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
         }
 
         // --- List of Saved URLs ---
@@ -380,15 +345,12 @@ fun ControlsTabContent(
                     it.sourceUrl.trim().equals(savedUrl.url.trim(), ignoreCase = true)
                 }
 
-                val isThisItemScraping = isScraping && scrapingUrl == savedUrl.url
                 SavedUrlItemCard(
                     savedUrl = savedUrl,
                     isScraped = isCurrentlyScraped,
-                    isScraping = isThisItemScraping,
                     tiersCount = tiersCount,
                     matchingDeals = matchingDeals,
                     onOpenWebView = { onOpenWebView(savedUrl.url) },
-                    onScrape = { onScrapeUrl(savedUrl.url) },
                     onEdit = { editingItem = savedUrl },
                     onDelete = { itemToDelete = savedUrl },
                     onNavigateToDeals = onNavigateToDeals
@@ -470,11 +432,9 @@ fun ControlsTabContent(
 fun SavedUrlItemCard(
     savedUrl: SavedUrl,
     isScraped: Boolean,
-    isScraping: Boolean,
     tiersCount: Int,
     matchingDeals: List<LeaseDeal>,
     onOpenWebView: () -> Unit,
-    onScrape: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onNavigateToDeals: () -> Unit,
@@ -663,65 +623,29 @@ fun SavedUrlItemCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Action Button: Web View & Scrape
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // Action Button: Web View
+            Button(
+                onClick = onOpenWebView,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .testTag("webview_button_${savedUrl.id}"),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
             ) {
-                OutlinedButton(
-                    onClick = onOpenWebView,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .testTag("webview_button_${savedUrl.id}"),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInBrowser,
-                        contentDescription = "Web View",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Browser",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Button(
-                    onClick = onScrape,
-                    enabled = !isScraping,
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .height(44.dp)
-                        .testTag("scrape_item_button_${savedUrl.id}"),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    if (isScraping) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Scrape Price",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isScraping) "..." else if (isScraped) "Re-scrape" else "Extract",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.OpenInBrowser,
+                    contentDescription = "Web View",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isScraped) "Re-extract Price" else "Open Web View",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

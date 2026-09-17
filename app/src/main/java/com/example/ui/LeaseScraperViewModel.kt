@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 enum class ScraperTab(val title: String) {
@@ -105,8 +107,8 @@ class LeaseScraperViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         viewModelScope.launch {
-            delay(200)
-            if (savedUrls.value.isEmpty()) {
+            val currentUrls = repository.allSavedUrls.first()
+            if (currentUrls.isEmpty()) {
                 repository.insertSavedUrls(DEFAULT_PRESETS)
             }
         }
